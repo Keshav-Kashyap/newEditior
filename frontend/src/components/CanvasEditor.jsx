@@ -1,0 +1,154 @@
+import { useRef, useEffect, useState } from 'react'
+import { fabric } from 'fabric'
+import { useEditorStore } from '@/store/editorStore'
+
+export function CanvasEditor() {
+    const canvasRef = useRef(null)
+    const fabricCanvasRef = useRef(null)
+    const [dimensions] = useState({ width: 1920, height: 1080 })
+
+    const { layers, selectedLayerId, setSelectedLayer, updateLayer, currentTime, captionStyle } = useEditorStore()
+
+    useEffect(() => {
+        if (!canvasRef.current) return
+
+        // Initialize Fabric canvas
+        const canvas = new fabric.Canvas(canvasRef.current, {
+            width: dimensions.width,
+            height: dimensions.height,
+            backgroundColor: '#000000',
+        })
+
+        fabricCanvasRef.current = canvas
+
+        // Handle object selection
+        canvas.on('selection:created', (e) => {
+            if (e.selected[0]?.layerId) {
+                setSelectedLayer(e.selected[0].layerId)
+            }
+        })
+
+        canvas.on('selection:updated', (e) => {
+            if (e.selected[0]?.layerId) {
+                setSelectedLayer(e.selected[0].layerId)
+            }
+        })
+
+        canvas.on('selection:cleared', () => {
+            setSelectedLayer(null)
+        })
+
+        // Handle object modifications
+        canvas.on('object:modified', (e) => {
+            const obj = e.target
+            if (obj.layerId) {
+                updateLayer(obj.layerId, {
+                    left: obj.left,
+                    top: obj.top,
+                    scaleX: obj.scaleX,
+                    scaleY: obj.scaleY,
+                    angle: obj.angle,
+                })
+            }
+        })
+
+        return () => {
+            canvas.dispose()
+        }
+    }, [])
+
+    useEffect(() => {
+        const canvas = fabricCanvasRef.current
+        if (!canvas) return
+
+        console.log('🎨 Canvas rendering with:', {
+            layersCount: layers.length,
+            wordLayers: layers.filter(l => l.isWordLayer).length,
+            currentTime,
+            captionStyle
+        })
+
+        // Clear canvas
+        canvas.clear()
+        canvas.backgroundColor = '#000000'
+
+        // Render layers
+        layers.forEach((layer) => {
+            // Skip word layers that are not in their time range
+            if (layer.isWordLayer) {
+                const isVisible = currentTime >= layer.startTime && currentTime <= layer.endTime
+                console.log(`Word "${layer.text}" - start:${layer.startTime} end:${layer.endTime} current:${currentTime} visible:${isVisible}`)
+                if (!isVisible) return
+            }
+
+            let fabricObject = null
+
+            if (layer.type === 'text') {
+                // Use captionStyle for word layers, otherwise use layer properties
+                const textConfig = layer.isWordLayer ? {
+                    left: layer.left || 100,
+                    top: (dimensions.height * captionStyle.verticalPosition) / 100,
+                    fontSize: captionStyle.fontSize || 48,
+                    fill: captionStyle.fill || '#ffffff',
+                    fontFamily: captionStyle.fontFamily || 'Arial',
+                    fontWeight: captionStyle.fontWeight || 'normal',
+                    fontStyle: layer.fontStyle || 'normal',
+                    shadow: captionStyle.shadowBlur > 0 ? new fabric.Shadow({
+                        color: `rgba(0,0,0,${captionStyle.shadowOpacity})`,
+                        blur: captionStyle.shadowBlur,
+                        offsetX: captionStyle.shadowX,
+                        offsetY: captionStyle.shadowY
+                    }) : null,
+                    originX: 'center',
+                    originY: 'center',
+                } : {
+                    left: layer.left || 100,
+                    top: layer.top || 100,
+                    fontSize: layer.fontSize || 48,
+                    fill: layer.fill || '#ffffff',
+                    fontFamily: layer.fontFamily || 'Arial',
+                    fontWeight: layer.fontWeight || 'normal',
+                    fontStyle: layer.fontStyle || 'normal',
+                    originX: layer.originX || 'left',
+                    originY: layer.originY || 'top',
+                };
+                
+                fabricObject = new fabric.IText(layer.text || 'Text', textConfig)
+            } else if (layer.type === 'image') {
+                fabric.Image.fromURL(layer.src, (img) => {
+                    img.set({
+                        left: layer.left || 100,
+                        top: layer.top || 100,
+                        scaleX: layer.scaleX || 1,
+                        scaleY: layer.scaleY || 1,
+                        angle: layer.angle || 0,
+                    })
+                    img.layerId = layer.id
+                    canvas.add(img)
+                    canvas.renderAll()
+                })
+                return
+            }
+
+            if (fabricObject) {
+                fabricObject.layerId = layer.id
+                fabricObject.set({
+                    scaleX: layer.scaleX || 1,
+                    scaleY: layer.scaleY || 1,
+                    angle: layer.angle || 0,
+                })
+                canvas.add(fabricObject)
+            }
+        })
+
+        canvas.renderAll()
+    }, [layers, currentTime, captionStyle, dimensions])
+
+    return (
+        <div className="w-full h-full bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+            <div className="relative" style={{ aspectRatio: '16/9', maxHeight: '100%', maxWidth: '100%' }}>
+                <canvas ref={canvasRef} />
+            </div>
+        </div>
+    )
+}
