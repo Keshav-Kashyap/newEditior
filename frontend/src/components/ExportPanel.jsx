@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { Button } from '@/components/ui/button'
+import API_URL from '@/lib/api'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Download, Loader2 } from 'lucide-react'
@@ -85,7 +86,7 @@ export function ExportPanel() {
             }
 
             // Send to backend for FFmpeg rendering
-            const response = await fetch('http://localhost:3000/api/export', {
+            const response = await fetch(`${API_URL}/api/export`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(exportData)
@@ -105,7 +106,7 @@ export function ExportPanel() {
 
             const pollProgress = setInterval(async () => {
                 try {
-                    const progressResponse = await fetch(`http://localhost:3000/api/export/progress/${jobId}`)
+                    const progressResponse = await fetch(`${API_URL}/api/export/progress/${jobId}`)
                     const progressData = await progressResponse.json()
 
                     console.log('📊 Progress:', progressData)
