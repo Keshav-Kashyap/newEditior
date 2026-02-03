@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useEditorStore } from '@/store/editorStore'
 import { Button } from '@/components/ui/button'
+import API_URL from '@/lib/api'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Loader2, Layers, Sparkles } from 'lucide-react'
@@ -38,7 +39,7 @@ export function ScriptPanel() {
         try {
             // Call backend API to generate word timestamps
             // Backend uses Whisper to analyze audio and return word-level timestamps
-            const response = await fetch('http://localhost:3000/api/generate-timestamps', {
+            const response = await fetch(`${API_URL}/api/generate-timestamps`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -76,7 +77,7 @@ export function ScriptPanel() {
 
         setAutoGenerating(true)
         try {
-            const response = await fetch('http://localhost:3000/api/captions/auto-generate', {
+            const response = await fetch(`${API_URL}/api/captions/auto-generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -122,7 +123,7 @@ export function ScriptPanel() {
 
         setConvertingHinglish(true)
         try {
-            const response = await fetch('http://localhost:3000/api/captions/convert-hinglish', {
+            const response = await fetch(`${API_URL}/api/captions/convert-hinglish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

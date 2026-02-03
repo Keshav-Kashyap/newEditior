@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { Upload, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import API_URL from '@/lib/api'
 import {
     Dialog,
     DialogContent,
@@ -31,7 +32,7 @@ export function VideoUpload() {
             const formData = new FormData()
             formData.append('video', file)
 
-            const response = await fetch('http://localhost:3000/api/upload-video', {
+            const response = await fetch(`${API_URL}/api/upload-video`, {
                 method: 'POST',
                 body: formData
             })
