@@ -50,12 +50,19 @@ router.post('/auto-generate', async (req, res) => {
         console.log('Waiting for transcription...');
         const transcript = await pollTranscription(transcriptId);
 
-        // Convert to word timestamps format
+        // Convert to word timestamps format with proper timing
         const captions = transcript.words.map(word => ({
             word: word.text,
             start: word.start / 1000, // Convert ms to seconds
-            end: word.end / 1000
+            end: word.end / 1000,
+            confidence: word.confidence || 0.9
         }));
+
+        console.log('📊 Sample timing:', {
+            firstWord: captions[0],
+            lastWord: captions[captions.length - 1],
+            totalDuration: captions[captions.length - 1]?.end || 0
+        });
 
         // Cleanup audio file
         await fs.unlink(audioPath).catch(() => { });

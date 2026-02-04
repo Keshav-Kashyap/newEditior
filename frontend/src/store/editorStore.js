@@ -128,9 +128,30 @@ export const useEditorStore = create((set, get) => ({
     wordTimestamps: [],
     activeWordIndex: -1,
 
-    setScript: (text) => set({ script: text }),
+    setScript: (text) => {
+        // Clear old word layers when script is changed
+        const { layers } = get()
+        const nonWordLayers = layers.filter(l => !l.isWordLayer)
+        
+        set({ 
+            script: text, 
+            layers: nonWordLayers,
+            wordTimestamps: [],
+            activeWordIndex: -1
+        })
+    },
 
-    setWordTimestamps: (timestamps) => set({ wordTimestamps: timestamps }),
+    setWordTimestamps: (timestamps) => {
+        // Clear old word layers when new timestamps are set
+        const { layers } = get()
+        const nonWordLayers = layers.filter(l => !l.isWordLayer)
+        
+        set({ 
+            wordTimestamps: timestamps,
+            layers: nonWordLayers,
+            activeWordIndex: -1
+        })
+    },
 
     updateActiveWord: () => {
         const { currentTime, wordTimestamps } = get()
@@ -140,12 +161,26 @@ export const useEditorStore = create((set, get) => ({
             return
         }
 
-        // Find the active word based on current time
+        // Add small buffer for better sync (0.2 seconds ahead)
+        const adjustedTime = currentTime + 0.2;
+
+        // Find the active word based on adjusted current time
         let activeIndex = -1
-        for (let i = wordTimestamps.length - 1; i >= 0; i--) {
-            if (currentTime >= wordTimestamps[i].start) {
+        for (let i = 0; i < wordTimestamps.length; i++) {
+            const word = wordTimestamps[i]
+            if (adjustedTime >= word.start && adjustedTime <= word.end) {
                 activeIndex = i
                 break
+            }
+        }
+        
+        // If no exact match, find the closest upcoming word
+        if (activeIndex === -1) {
+            for (let i = 0; i < wordTimestamps.length; i++) {
+                if (adjustedTime <= wordTimestamps[i].start) {
+                    activeIndex = Math.max(0, i - 1)
+                    break
+                }
             }
         }
 

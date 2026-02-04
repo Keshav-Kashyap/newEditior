@@ -64,8 +64,10 @@ export function CanvasEditor() {
         console.log('🎨 Canvas rendering with:', {
             layersCount: layers.length,
             wordLayers: layers.filter(l => l.isWordLayer).length,
+            nonWordLayers: layers.filter(l => !l.isWordLayer).length,
             currentTime,
-            captionStyle
+            captionStyle,
+            wordLayerTexts: layers.filter(l => l.isWordLayer).map(l => l.text)
         })
 
         // Clear canvas
@@ -74,10 +76,14 @@ export function CanvasEditor() {
 
         // Render layers
         layers.forEach((layer) => {
-            // Skip word layers that are not in their time range
+            // Skip word layers that are not in their time range (with sync buffer)
             if (layer.isWordLayer) {
-                const isVisible = currentTime >= layer.startTime && currentTime <= layer.endTime
-                console.log(`Word "${layer.text}" - start:${layer.startTime} end:${layer.endTime} current:${currentTime} visible:${isVisible}`)
+                // Add timing buffer for better synchronization
+                const syncBuffer = 0.3 // 300ms ahead
+                const bufferedTime = currentTime + syncBuffer
+                const isVisible = bufferedTime >= layer.startTime && bufferedTime <= (layer.endTime + 0.5)
+                
+                console.log(`Word "${layer.text}" - start:${layer.startTime} end:${layer.endTime} current:${currentTime.toFixed(2)} buffered:${bufferedTime.toFixed(2)} visible:${isVisible}`)
                 if (!isVisible) return
             }
 

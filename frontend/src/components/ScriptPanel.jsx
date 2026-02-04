@@ -17,7 +17,6 @@ import {
 export function ScriptPanel() {
     const [loading, setLoading] = useState(false)
     const [autoGenerating, setAutoGenerating] = useState(false)
-    const [convertingHinglish, setConvertingHinglish] = useState(false)
     const [language, setLanguage] = useState('auto')
     const {
         script,
@@ -77,6 +76,7 @@ export function ScriptPanel() {
 
         setAutoGenerating(true)
         try {
+            // Step 1: Generate captions from AssemblyAI
             const response = await fetch(`${API_URL}/api/captions/auto-generate`, {
                 method: 'POST',
                 headers: {
@@ -91,67 +91,59 @@ export function ScriptPanel() {
             const data = await response.json()
 
             if (data.success) {
-                // Set the generated captions as word timestamps
-                setWordTimestamps(data.captions)
-
-                // Also set the script text
-                const scriptText = data.captions.map(c => c.word).join(' ')
-                setScript(scriptText)
+                console.log('✅ AssemblyAI captions generated:', data.captions.length, 'words')
+                
+                let finalCaptions = data.captions
+                let finalScript = data.captions.map(c => c.word).join(' ')
+                
+                // Step 2: Auto-convert to Hinglish if Hindi language was selected or detected
+                if (language === 'hi' || language === 'auto') {
+                    console.log('🔄 Auto-converting to Hinglish with OpenRouter...')
+                    
+                    try {
+                        const hinglishResponse = await fetch(`${API_URL}/api/captions/convert-hinglish`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                captions: data.captions
+                            })
+                        })
+                        
+                        const hinglishData = await hinglishResponse.json()
+                        
+                        if (hinglishData.success) {
+                            console.log('✅ Automatic Hinglish conversion successful!')
+                            finalCaptions = hinglishData.captions
+                            finalScript = hinglishData.captions.map(c => c.word).join(' ')
+                        } else {
+                            console.log('⚠️ Hinglish conversion failed, using original Hindi captions')
+                        }
+                    } catch (hinglishError) {
+                        console.error('⚠️ Hinglish conversion error, using original captions:', hinglishError)
+                    }
+                }
+                
+                // Set the final captions (Hindi or Hinglish)
+                setWordTimestamps(finalCaptions)
+                setScript(finalScript)
 
                 // Automatically create word layers on canvas
                 setTimeout(() => {
                     createWordLayers()
-                }, 100)
+                }, 200)
 
-                alert(`✅ ${data.wordCount} captions generated successfully!`)
+                const conversionStatus = (language === 'hi' || language === 'auto') ? ' → Auto-converted to Hinglish!' : ''
+                alert(`✅ ${finalCaptions.length} captions generated successfully!${conversionStatus}`)
             } else {
-                throw new Error(data.error || 'Failed bro to generate captions')
+                throw new Error(data.error || 'Failed to generate captions')
             }
         } catch (error) {
             console.error('Auto-generate error:', error)
             alert('❌ Failed to generate captions: ' + error.message)
         } finally {
             setAutoGenerating(false)
-        }
-    }
-
-    const convertToHinglish = async () => {
-        if (wordTimestamps.length === 0) {
-            alert('Please generate captions first!')
-            return
-        }
-
-        setConvertingHinglish(true)
-        try {
-            const response = await fetch(`${API_URL}/api/captions/convert-hinglish`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    captions: wordTimestamps
-                })
-            })
-
-            const data = await response.json()
-
-            if (data.success) {
-                // Update captions with Hinglish text
-                setWordTimestamps(data.captions)
-
-                // Update script text
-                const hinglishScript = data.captions.map(c => c.word).join(' ')
-                setScript(hinglishScript)
-
-                alert(`✅ Converted to Hinglish! ${data.wordCount} words`)
-            } else {
-                throw new Error(data.error || 'Failed to convert to Hinglish')
-            }
-        } catch (error) {
-            console.error('Hinglish conversion error:', error)
-            alert('❌ Failed to convert: ' + error.message)
-        } finally {
-            setConvertingHinglish(false)
         }
     }
 
@@ -165,17 +157,20 @@ export function ScriptPanel() {
                 </div>
 
                 <div className="space-y-2">
-                    <Label className="text-sm">Language</Label>
+                    <Label className="text-sm">Language (AssemblyAI will auto-detect and transcribe)</Label>
                     <Select value={language} onValueChange={setLanguage}>
                         <SelectTrigger>
                             <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="auto">Auto Detect</SelectItem>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="hi">हिंदी (Hindi)</SelectItem>
+                            <SelectItem value="auto">🌐 Auto Detect</SelectItem>
+                            <SelectItem value="en">🇺🇸 English</SelectItem>
+                            <SelectItem value="hi">🇮🇳 हिंदी (Hindi)</SelectItem>
                         </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                        💡 For Hindi videos: Auto-generates Hindi captions → Automatically converts to Hinglish using OpenRouter (Free!)
+                    </p>
                 </div>
 
                 <Button
@@ -184,36 +179,13 @@ export function ScriptPanel() {
                     className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                 >
                     {autoGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {autoGenerating ? 'Generating Captions...' : '✨ Auto-Generate from Video'}
+                    {autoGenerating ? 'Generating & Converting...' : '✨ Auto-Generate Captions (→ Hinglish for Hindi)'}
                 </Button>
 
                 <p className="text-xs text-muted-foreground">
-                    Powered by AssemblyAI - Automatically transcribe video audio
+                    🤖 AssemblyAI + OpenRouter - Auto-converts Hindi to Hinglish seamlessly
                 </p>
             </div>
-
-            {/* Convert to Hinglish */}
-            {wordTimestamps.length > 0 && (
-                <div className="p-4 border rounded-lg bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-950 dark:to-yellow-950 space-y-3">
-                    <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-orange-600" />
-                        <Label className="text-base font-semibold">Convert to Hinglish</Label>
-                    </div>
-
-                    <Button
-                        onClick={convertToHinglish}
-                        disabled={convertingHinglish}
-                        className="w-full bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-700 hover:to-yellow-700"
-                    >
-                        {convertingHinglish && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {convertingHinglish ? 'Converting...' : '🔄 Convert Hindi/English to Hinglish'}
-                    </Button>
-
-                    <p className="text-xs text-muted-foreground">
-                        Powered by OpenAI - Convert Hindi/English text to Roman Hindi (Hinglish)
-                    </p>
-                </div>
-            )}
 
             {/* Manual Script Entry */}
             <div className="space-y-2">
@@ -224,6 +196,9 @@ export function ScriptPanel() {
                     onChange={(e) => setScript(e.target.value)}
                     className="min-h-[200px] font-mono"
                 />
+                <p className="text-xs text-muted-foreground">
+                    ✏️ Changes to script will clear existing word layers. Click "Generate Word Timestamps" to sync with video.
+                </p>
             </div>
 
             <Button

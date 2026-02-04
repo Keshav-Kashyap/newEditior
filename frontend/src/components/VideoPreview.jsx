@@ -141,12 +141,15 @@ export function VideoPreview() {
                 }
             }
 
-            // For word layers, check if they should be visible
+            // For word layers, check if they should be visible with timing buffer
             if (layer.isWordLayer && !showAllWords) {
-                const isVisible = currentTime >= layer.startTime && currentTime <= layer.endTime
+                // Add 0.3 second buffer for better sync
+                const bufferedTime = currentTime + 0.3
+                const isVisible = bufferedTime >= layer.startTime && bufferedTime <= (layer.endTime + 0.5)
+                
                 if (isVisible) {
                     visibleWordCount++
-                    console.log(`✅ Showing word: "${layer.text}" at time ${currentTime.toFixed(2)} (${layer.startTime}-${layer.endTime})`)
+                    console.log(`✅ Showing word: "${layer.text}" at buffered time ${bufferedTime.toFixed(2)} (${layer.startTime}-${layer.endTime})`)
                 } else {
                     // Skip invisible word layers
                     return
@@ -251,7 +254,9 @@ export function VideoPreview() {
     }, [layers, currentTime, showAllWords])
 
     const handleProgress = ({ playedSeconds }) => {
-        setCurrentTime(playedSeconds)
+        // Round to 2 decimal places for precise timing
+        const preciseTiming = Math.round(playedSeconds * 100) / 100
+        setCurrentTime(preciseTiming)
     }
 
     const handleDuration = (duration) => {
@@ -304,7 +309,9 @@ export function VideoPreview() {
                         onDuration={handleDuration}
                         width="100%"
                         height="100%"
-                        progressInterval={16}
+                        progressInterval={50} // Update every 50ms for smoother sync
+                        playsinline
+                        controls={false}
                     />
 
                     {/* Simple Word Overlay - Draggable */}
@@ -378,7 +385,10 @@ export function VideoPreview() {
                         <div>Words: {layers.filter(l => l.isWordLayer).length}</div>
                         <div>Time: {currentTime.toFixed(2)}s</div>
                         <div className="text-green-400">
-                            Visible: {layers.filter(l => l.isWordLayer && currentTime >= l.startTime && currentTime <= l.endTime).length}
+                            Visible: {layers.filter(l => l.isWordLayer && (currentTime + 0.3) >= l.startTime && (currentTime + 0.3) <= (l.endTime + 0.5)).length}
+                        </div>
+                        <div className="text-blue-400">
+                            Buffered Time: {(currentTime + 0.3).toFixed(2)}s
                         </div>
                         {/* Show current visible word */}
                         {(() => {

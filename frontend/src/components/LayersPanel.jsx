@@ -13,6 +13,14 @@ export function LayersPanel() {
     const hasWordLayers = layers.some(l => l.isWordLayer)
     const isSelectedLayerWordLayer = selectedLayer?.isWordLayer
 
+    const clearWordLayers = () => {
+        const nonWordLayers = layers.filter(l => !l.isWordLayer)
+        reorderLayers(nonWordLayers)
+        if (selectedLayer?.isWordLayer) {
+            setSelectedLayer(null)
+        }
+    }
+
     const moveLayer = (index, direction) => {
         const newLayers = [...layers]
         const newIndex = direction === 'up' ? index - 1 : index + 1
@@ -26,7 +34,19 @@ export function LayersPanel() {
     return (
         <div className="space-y-4">
             <div className="space-y-2">
-                <h3 className="font-semibold">Layers</h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Layers</h3>
+                    {hasWordLayers && (
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={clearWordLayers}
+                        >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Clear Word Layers
+                        </Button>
+                    )}
+                </div>
                 <div className="space-y-1">
                     {layers.length === 0 ? (
                         <p className="text-sm text-muted-foreground">No layers yet</p>
