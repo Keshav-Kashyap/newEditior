@@ -35,8 +35,8 @@ export function Timeline() {
   return (
     <div className="h-full border-t bg-background flex flex-col">
       {/* Header */}
-      <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Timeline</h3>
+      <div className="px-2 md:px-3 py-1 md:py-2 border-b bg-muted/30 flex items-center justify-between">
+        <h3 className="text-xs md:text-sm font-semibold">Timeline</h3>
         <span className="text-xs text-muted-foreground">
           {layers.length} layer{layers.length !== 1 ? 's' : ''}
         </span>
@@ -44,8 +44,8 @@ export function Timeline() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Layer Names Column */}
-        <div className="w-48 border-r bg-muted/20 overflow-y-auto">
-          <div className="h-10 border-b bg-muted/30 flex items-center px-2">
+        <div className="w-32 md:w-48 border-r bg-muted/20 overflow-y-auto">
+          <div className="h-8 md:h-10 border-b bg-muted/30 flex items-center px-1 md:px-2">
             <span className="text-xs font-medium text-muted-foreground">LAYERS</span>
           </div>
           
@@ -58,7 +58,7 @@ export function Timeline() {
               {layers.map((layer, index) => (
                 <div
                   key={layer.id}
-                  className={`h-12 px-2 flex items-center gap-2 border-b cursor-pointer transition-colors ${
+                  className={`h-10 md:h-12 px-1 md:px-2 flex items-center gap-1 md:gap-2 border-b cursor-pointer transition-colors ${
                     selectedLayerId === layer.id
                       ? 'bg-primary/10 border-primary'
                       : 'hover:bg-muted/50'
@@ -69,44 +69,44 @@ export function Timeline() {
                     <span className="text-xs font-medium truncate">
                       {layer.type === 'text' ? layer.text || 'Text' : layer.name || 'Image'}
                     </span>
-                    <span className="text-xs text-muted-foreground capitalize">{layer.type}</span>
+                    <span className="text-xs text-muted-foreground capitalize hidden md:block">{layer.type}</span>
                   </div>
                   
-                  <div className="flex gap-1">
+                  <div className="flex gap-0.5 md:gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-5 w-5 md:h-6 md:w-6"
                       onClick={(e) => {
                         e.stopPropagation()
                         moveLayer(index, 'up')
                       }}
                       disabled={index === 0}
                     >
-                      <MoveUp className="h-3 w-3" />
+                      <MoveUp className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-5 w-5 md:h-6 md:w-6"
                       onClick={(e) => {
                         e.stopPropagation()
                         moveLayer(index, 'down')
                       }}
                       disabled={index === layers.length - 1}
                     >
-                      <MoveDown className="h-3 w-3" />
+                      <MoveDown className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-destructive"
+                      className="h-5 w-5 md:h-6 md:w-6 text-destructive"
                       onClick={(e) => {
                         e.stopPropagation()
                         removeLayer(layer.id)
                       }}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <Trash2 className="h-2.5 w-2.5 md:h-3 md:w-3" />
                     </Button>
                   </div>
                 </div>
@@ -118,14 +118,14 @@ export function Timeline() {
         {/* Timeline Track Area */}
         <div className="flex-1 overflow-x-auto overflow-y-auto">
           {/* Time Scale */}
-          <div className="h-10 border-b bg-muted/30 relative" style={{ minWidth: `${timelineWidth}px` }}>
+          <div className="h-8 md:h-10 border-b bg-muted/30 relative" style={{ minWidth: `${timelineWidth}px` }}>
             {Array.from({ length: Math.ceil(videoDuration || 20) + 1 }).map((_, i) => (
               <div
                 key={i}
                 className="absolute top-0 h-full border-l border-border/50"
                 style={{ left: `${i * secondWidth}px` }}
               >
-                <span className="text-xs text-muted-foreground ml-1 mt-1 inline-block">{i}</span>
+                <span className="text-xs text-muted-foreground ml-0.5 md:ml-1 mt-0.5 md:mt-1 inline-block">{i}</span>
               </div>
             ))}
             
@@ -139,7 +139,7 @@ export function Timeline() {
           </div>
 
           {/* Layer Duration Bars */}
-          <div className="py-1" style={{ minWidth: `${timelineWidth}px` }}>
+          <div className="py-0.5 md:py-1" style={{ minWidth: `${timelineWidth}px` }}>
             {layers.length === 0 ? (
               <div className="h-12 flex items-center justify-center text-xs text-muted-foreground">
                 Add layers to see them here
@@ -148,21 +148,21 @@ export function Timeline() {
               layers.map((layer) => (
                 <div
                   key={layer.id}
-                  className={`h-12 border-b relative ${
+                  className={`h-10 md:h-12 border-b relative ${
                     selectedLayerId === layer.id ? 'bg-primary/5' : ''
                   }`}
                   onClick={() => setSelectedLayer(layer.id)}
                 >
                   {/* Duration Bar - Full width for now */}
                   <div
-                    className={`absolute top-2 bottom-2 left-0 rounded cursor-pointer transition-colors ${
+                    className={`absolute top-1 bottom-1 md:top-2 md:bottom-2 left-0 rounded cursor-pointer transition-colors ${
                       selectedLayerId === layer.id
                         ? 'bg-primary'
                         : 'bg-primary/60 hover:bg-primary/80'
                     }`}
                     style={{ width: `${(videoDuration || 20) * secondWidth}px` }}
                   >
-                    <div className="px-2 py-1 text-xs text-white font-medium truncate">
+                    <div className="px-1 md:px-2 py-0.5 md:py-1 text-xs text-white font-medium truncate">
                       {layer.type === 'text' ? layer.text || 'Text' : layer.name || 'Image'}
                     </div>
                   </div>

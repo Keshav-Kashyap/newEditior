@@ -27,6 +27,7 @@ export function ScriptPanel() {
         currentTime,
         createWordLayers,
         layers,
+        setLayers,
         videoUrl,
         uploadedVideoPath
     } = useEditorStore()
@@ -129,13 +130,19 @@ export function ScriptPanel() {
                 setWordTimestamps(finalCaptions)
                 setScript(finalScript)
 
-                // Automatically create word layers on canvas
+                // Clear existing word layers first
+                const nonWordLayers = layers.filter(layer => !layer.isWordLayer)
+                setLayers(nonWordLayers)
+
+                // Automatically create word layers on canvas with a delay
                 setTimeout(() => {
+                    console.log('🎯 Creating word layers automatically...')
                     createWordLayers()
-                }, 200)
+                    console.log('✅ Word layers created and should be visible on video')
+                }, 500)
 
                 const conversionStatus = (language === 'hi' || language === 'auto') ? ' → Auto-converted to Hinglish!' : ''
-                alert(`✅ ${finalCaptions.length} captions generated successfully!${conversionStatus}`)
+                alert(`✅ ${finalCaptions.length} captions generated and displayed on video!${conversionStatus}`)
             } else {
                 throw new Error(data.error || 'Failed to generate captions')
             }
@@ -219,15 +226,30 @@ export function ScriptPanel() {
                         </span>
                     </div>
 
-                    <Button
-                        onClick={createWordLayers}
-                        variant="outline"
-                        className="w-full"
-                        disabled={layers.some(l => l.isWordLayer)}
-                    >
-                        <Layers className="mr-2 h-4 w-4" />
-                        {layers.some(l => l.isWordLayer) ? 'Word Layers Created' : 'Create Word Layers on Video'}
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={createWordLayers}
+                            variant="outline"
+                            className="flex-1"
+                            disabled={layers.some(l => l.isWordLayer)}
+                        >
+                            <Layers className="mr-2 h-4 w-4" />
+                            {layers.some(l => l.isWordLayer) ? 'Word Layers Created ✅' : 'Create Word Layers on Video'}
+                        </Button>
+                        
+                        {layers.some(l => l.isWordLayer) && (
+                            <Button
+                                onClick={() => {
+                                    const nonWordLayers = layers.filter(layer => !layer.isWordLayer)
+                                    setLayers(nonWordLayers)
+                                }}
+                                variant="destructive"
+                                size="sm"
+                            >
+                                Clear Words
+                            </Button>
+                        )}
+                    </div>
 
                     <div className="p-4 bg-muted rounded-lg min-h-[120px] flex flex-wrap gap-2 items-start">
                         {wordTimestamps.map((item, index) => (

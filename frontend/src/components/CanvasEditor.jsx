@@ -90,15 +90,38 @@ export function CanvasEditor() {
             let fabricObject = null
 
             if (layer.type === 'text') {
+                // Calculate horizontal position based on alignment for word layers
+                let horizontalPosition = layer.left || 100;
+                let textAlign = 'left';
+                
+                if (layer.isWordLayer) {
+                    textAlign = captionStyle.textAlign || 'center';
+                    // Calculate position based on alignment
+                    switch (textAlign) {
+                        case 'left':
+                            horizontalPosition = dimensions.width * 0.1; // 10% from left
+                            break;
+                        case 'center':
+                            horizontalPosition = dimensions.width * 0.5; // Center
+                            break;
+                        case 'right':
+                            horizontalPosition = dimensions.width * 0.9; // 10% from right
+                            break;
+                        default:
+                            horizontalPosition = dimensions.width * 0.5; // Default to center
+                    }
+                }
+
                 // Use captionStyle for word layers, otherwise use layer properties
                 const textConfig = layer.isWordLayer ? {
-                    left: layer.left || 100,
+                    left: horizontalPosition,
                     top: (dimensions.height * captionStyle.verticalPosition) / 100,
                     fontSize: captionStyle.fontSize || 48,
                     fill: captionStyle.fill || '#ffffff',
                     fontFamily: captionStyle.fontFamily || 'Arial',
                     fontWeight: captionStyle.fontWeight || 'normal',
                     fontStyle: layer.fontStyle || 'normal',
+                    textAlign: textAlign,
                     shadow: captionStyle.shadowBlur > 0 ? new fabric.Shadow({
                         color: `rgba(0,0,0,${captionStyle.shadowOpacity})`,
                         blur: captionStyle.shadowBlur,

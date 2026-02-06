@@ -3,7 +3,7 @@ import ReactPlayer from 'react-player'
 import { fabric } from 'fabric'
 import Draggable from 'react-draggable'
 import { useEditorStore } from '@/store/editorStore'
-import { Play, Pause, SkipBack, SkipForward, Eye, EyeOff } from 'lucide-react'
+import { Play, Pause, SkipBack, SkipForward, Eye, EyeOff, Maximize, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 
@@ -13,21 +13,25 @@ export function VideoPreview() {
     const fabricCanvasRef = useRef(null)
     const [showAllWords, setShowAllWords] = useState(false)
     const [wordPosition, setWordPosition] = useState({ x: 0, y: 0 })
+    const [showFullscreenControls, setShowFullscreenControls] = useState(true)
 
     const {
         videoUrl,
         currentTime,
         videoDuration,
         isPlaying,
+        isFullscreen,
         setCurrentTime,
         setVideoDuration,
         setIsPlaying,
+        toggleFullscreen,
         updateActiveWord,
         layers,
         selectedLayerId,
         setSelectedLayer,
         updateLayer,
-        captionStyle
+        captionStyle,
+        globalEditMode
     } = useEditorStore()
 
     useEffect(() => {
@@ -70,13 +74,26 @@ export function VideoPreview() {
                 const scaleY = canvas.getHeight() / 1080
                 const scale = Math.min(scaleX, scaleY)
 
-                updateLayer(obj.layerId, {
+                const updateData = {
                     left: obj.left / scale,
                     top: obj.top / scale,
                     scaleX: obj.scaleX / scale,
                     scaleY: obj.scaleY / scale,
                     angle: obj.angle,
-                })
+                }
+
+                if (globalEditMode) {
+                    // Global mode: Apply changes to all word layers
+                    const wordLayers = layers.filter(layer => layer.isWordLayer)
+                    wordLayers.forEach(layer => {
+                        updateLayer(layer.id, updateData)
+                    })
+                    console.log(`🌐 Global edit: Updated ${wordLayers.length} word layers`)
+                } else {
+                    // Individual mode: Update only the selected layer
+                    updateLayer(obj.layerId, updateData)
+                    console.log(`🎯 Individual edit: Updated layer ${obj.layerId}`)
+                }
             }
         })
 
@@ -159,15 +176,40 @@ export function VideoPreview() {
             let fabricObject = null
 
             if (layer.type === 'text') {
-                // For word layers, use FIXED POSITION to test visibility
+                // For word layers, calculate position based on alignment
                 let scaledLeft, scaledTop, scaledFontSize
 
                 if (layer.isWordLayer) {
-                    // Word layers: center of screen, no scaling issues
-                    scaledLeft = canvas.getWidth() / 2
-                    scaledTop = canvas.getHeight() / 2
-                    scaledFontSize = 60
-                    console.log(`🎯 WORD LAYER: "${layer.text}" at CENTER (${scaledLeft.toFixed(0)}, ${scaledTop.toFixed(0)}) fontSize: ${scaledFontSize}`)
+                    // CONTAINER-BASED POSITIONING: Words stay within defined bounds
+                    const canvasWidth = canvas.getWidth()
+                    const canvasHeight = canvas.getHeight()
+                    
+                    // Define word container bounds (80% of screen width, centered)
+                    const containerWidth = canvasWidth * 0.8
+                    const containerLeft = canvasWidth * 0.1  // 10% margin from left
+                    const containerRight = canvasWidth * 0.9 // 10% margin from right
+                    const containerCenterX = canvasWidth / 2
+                    
+                    // Position word in center of container
+                    scaledLeft = containerCenterX
+                    scaledTop = (canvasHeight * captionStyle.verticalPosition) / 100
+                    scaledFontSize = (captionStyle.fontSize || 80) * scale
+                    
+                    console.log(`📦 CONTAINER WORD "${layer.text}": bounds=[${containerLeft.toFixed(0)}, ${containerRight.toFixed(0)}], center=${scaledLeft.toFixed(0)}`)
+                    
+                    // Optional: Draw container bounds for debugging (uncomment if needed)
+                    // const boundingBox = new fabric.Rect({
+                    //     left: containerLeft,
+                    //     top: scaledTop - scaledFontSize/2,
+                    //     width: containerWidth,
+                    //     height: scaledFontSize * 1.5,
+                    //     fill: 'transparent',
+                    //     stroke: 'rgba(255,255,0,0.3)',
+                    //     strokeWidth: 2,
+                    //     selectable: false,
+                    //     evented: false
+                    // })
+                    // canvas.add(boundingBox)
                 } else {
                     // Regular text layers: use design space scaling
                     scaledLeft = (layer.left || 100) * scale
@@ -176,7 +218,44 @@ export function VideoPreview() {
                     console.log(`📝 Regular text: "${layer.text}" at (${scaledLeft.toFixed(0)}, ${scaledTop.toFixed(0)}) fontSize: ${scaledFontSize.toFixed(0)}`)
                 }
 
-                fabricObject = new fabric.Text(layer.text || 'Text', {
+                // Create fabric text object with container bounds and wrapping
+                const textConfig = layer.isWordLayer ? {
+                    left: scaledLeft,
+                    top: scaledTop,
+                    fontSize: scaledFontSize,
+                    fill: captionStyle.fill || '#FFFF00',
+                    fontFamily: captionStyle.fontFamily || 'Arial',
+                    fontWeight: captionStyle.fontWeight || 'bold',
+                    fontStyle: layer.fontStyle || 'normal',
+                    textAlign: 'center',
+                    originX: 'center',
+                    originY: 'center',
+                    // Container bounds - text wraps within these limits
+                    width: canvas.getWidth() * 0.8, // 80% of canvas width
+                    splitByGrapheme: false, // Better word wrapping
+                    breakWords: true, // Allow breaking long words if needed
+                    charSpacing: 0, // Normal character spacing
+                    lineHeight: 1.2, // Line height for wrapped text
+                    // Enhanced shadow and stroke for better readability
+                    stroke: '#000000',
+                    strokeWidth: 3,
+                    shadow: captionStyle.shadowBlur > 0 ? new fabric.Shadow({
+                        color: `rgba(0,0,0,${captionStyle.shadowOpacity})`,
+                        blur: captionStyle.shadowBlur * scale,
+                        offsetX: captionStyle.shadowX * scale,
+                        offsetY: captionStyle.shadowY * scale
+                    }) : new fabric.Shadow({
+                        color: 'rgba(0,0,0,0.8)',
+                        blur: 10 * scale,
+                        offsetX: 2 * scale,
+                        offsetY: 2 * scale
+                    }),
+                    selectable: true,
+                    editable: false,
+                    lockRotation: true, // Prevent rotation to maintain text readability
+                    hasControls: true,
+                    hasBorders: true,
+                } : {
                     left: scaledLeft,
                     top: scaledTop,
                     fontSize: scaledFontSize,
@@ -184,8 +263,8 @@ export function VideoPreview() {
                     fontFamily: layer.fontFamily || 'Arial',
                     fontWeight: layer.fontWeight || 'bold',
                     fontStyle: layer.fontStyle || 'normal',
-                    stroke: layer.isWordLayer ? '#000000' : '#000000',
-                    strokeWidth: layer.isWordLayer ? 3 : 2,
+                    stroke: '#000000',
+                    strokeWidth: 2,
                     shadow: new fabric.Shadow({
                         color: 'rgba(0,0,0,0.8)',
                         blur: 10,
@@ -194,9 +273,11 @@ export function VideoPreview() {
                     }),
                     selectable: true,
                     editable: false,
-                    originX: layer.isWordLayer ? 'center' : 'left',
-                    originY: layer.isWordLayer ? 'center' : 'top'
-                })
+                    originX: 'left',
+                    originY: 'top'
+                };
+
+                fabricObject = new fabric.Text(layer.text || 'Text', textConfig)
             } else if (layer.type === 'image') {
                 fabric.Image.fromURL(layer.src, (img) => {
                     img.set({
@@ -228,26 +309,6 @@ export function VideoPreview() {
         })
 
         console.log(`📊 Total word layers: ${totalWordLayers}, Visible words: ${visibleWordCount}, Canvas objects: ${canvas.getObjects().length}`)
-
-        // ADD TEST OBJECTS TO VERIFY CANVAS RENDERING
-        const testRect = new fabric.Rect({
-            left: 50,
-            top: 50,
-            width: 200,
-            height: 100,
-            fill: 'red',
-            opacity: 0.7
-        })
-        canvas.add(testRect)
-
-        const testText = new fabric.Text('CANVAS TEST', {
-            left: 100,
-            top: 80,
-            fontSize: 30,
-            fill: 'white',
-            fontWeight: 'bold'
-        })
-        canvas.add(testText)
 
         canvas.renderAll()
         console.log(`🎨 Final canvas objects after render: ${canvas.getObjects().length}`)
@@ -292,14 +353,14 @@ export function VideoPreview() {
     if (!videoUrl) {
         return (
             <div className="flex items-center justify-center h-full bg-muted rounded-lg">
-                <p className="text-muted-foreground">No video loaded</p>
+                <p className="text-muted-foreground text-sm">No video loaded</p>
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
+        <div className={`flex flex-col ${isFullscreen ? 'h-screen w-screen' : 'h-full'}`}>
+            <div className={`flex-1 bg-black ${isFullscreen ? 'rounded-none' : 'rounded-lg'} overflow-hidden relative ${isFullscreen ? '' : 'min-h-[250px] md:min-h-0'}`}>
                 <div className="relative w-full h-full">
                     <ReactPlayer
                         ref={playerRef}
@@ -343,6 +404,11 @@ export function VideoPreview() {
                                 <div
                                     className="absolute cursor-move"
                                     style={{
+                                        display:"flex",
+                                        justifyContent:"center",
+                                        alignItems:"center",
+                                        width: '100px',
+                                        height: '50px',
                                         left: '50%',
                                         top: `${captionStyle.verticalPosition}%`,
                                         transform: 'translate(-50%, -50%)',
@@ -352,14 +418,15 @@ export function VideoPreview() {
                                 >
                                     <div
                                         style={{
-                                            fontSize: `${captionStyle.fontSize}px`,
+                                            fontSize: isFullscreen ? `${captionStyle.fontSize}px` : `${Math.min(captionStyle.fontSize * 0.4, 32)}px`, // Responsive font size
                                             color: captionStyle.fill,
                                             fontFamily: captionStyle.fontFamily,
                                             fontWeight: captionStyle.fontWeight,
                                             textShadow: `${captionStyle.shadowX}px ${captionStyle.shadowY}px ${captionStyle.shadowBlur}px rgba(0,0,0,${captionStyle.shadowOpacity})`,
-                                            padding: '10px 20px',
+                                            padding: isFullscreen ? '10px 20px' : '5px 10px',
                                             userSelect: 'none',
-                                            whiteSpace: 'nowrap'
+                                            whiteSpace: 'nowrap',
+                                            textAlign: captionStyle.textAlign,
                                         }}
                                     >
                                         {displayWord.text}
@@ -377,125 +444,176 @@ export function VideoPreview() {
                             style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'auto' }}
                         />
                     </div>
+                </div>
+            </div>
 
-                    {/* Debug info */}
-                    <div className="absolute top-2 left-2 bg-black/90 text-white text-xs p-3 rounded font-mono max-w-xs" style={{ zIndex: 20 }}>
-                        <div className="font-bold text-yellow-400 mb-1">DEBUG INFO</div>
-                        <div>Layers: {layers.length}</div>
-                        <div>Words: {layers.filter(l => l.isWordLayer).length}</div>
-                        <div>Time: {currentTime.toFixed(2)}s</div>
-                        <div className="text-green-400">
-                            Visible: {layers.filter(l => l.isWordLayer && (currentTime + 0.3) >= l.startTime && (currentTime + 0.3) <= (l.endTime + 0.5)).length}
-                        </div>
-                        <div className="text-blue-400">
-                            Buffered Time: {(currentTime + 0.3).toFixed(2)}s
-                        </div>
-                        {/* Show current visible word */}
-                        {(() => {
-                            const visibleWord = layers.find(l =>
-                                l.isWordLayer &&
-                                currentTime >= l.startTime &&
-                                currentTime <= l.endTime
-                            )
-                            if (visibleWord) {
-                                return (
-                                    <div className="mt-2 pt-2 border-t border-yellow-500">
-                                        <div className="text-yellow-300 font-bold">Current Word:</div>
-                                        <div className="text-2xl font-bold text-yellow-400 my-1">"{visibleWord.text}"</div>
-                                        <div className="text-xs text-gray-300">
-                                            Time: {visibleWord.startTime.toFixed(2)} - {visibleWord.endTime.toFixed(2)}s
-                                        </div>
-                                        <div className="text-xs text-gray-300">
-                                            Pos: ({visibleWord.left}, {visibleWord.top})
-                                        </div>
-                                    </div>
-                                )
-                            } else if (layers.filter(l => l.isWordLayer).length > 0) {
-                                return (
-                                    <div className="mt-2 pt-2 border-t border-red-500">
-                                        <div className="text-red-400">No word at this time</div>
-                                    </div>
-                                )
-                            }
-                            return null
-                        })()}
+            {/* Fullscreen Controls Hide/Show Button */}
+            {isFullscreen && (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowFullscreenControls(!showFullscreenControls)}
+                    className="fixed top-4 right-4 z-50 bg-black/50 text-white hover:bg-black/70 border border-white/30"
+                >
+                    {showFullscreenControls ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+            )}
+
+            {/* Fullscreen Controls - Can be hidden */}
+            {isFullscreen && showFullscreenControls && (
+                <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-black/80 rounded-lg p-3 space-y-2 z-50 border border-white/20">
+                    {/* Timeline Slider */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-white w-12">
+                            {formatTime(currentTime)}
+                        </span>
+                        <Slider
+                            value={[currentTime]}
+                            max={videoDuration || 100}
+                            step={0.01}
+                            onValueChange={handleSeek}
+                            className="flex-1 w-64"
+                        />
+                        <span className="text-xs text-white w-12">
+                            {formatTime(videoDuration)}
+                        </span>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => skipTime(-5)}
+                            className="text-xs bg-black/50 text-white border-white/30 hover:bg-white/20"
+                        >
+                            <SkipBack className="h-4 w-4" />
+                            <span className="ml-1">-5s</span>
+                        </Button>
+
+                        <Button
+                            size="default"
+                            onClick={togglePlay}
+                            className="text-xs bg-white text-black hover:bg-gray-200"
+                        >
+                            {isPlaying ? (
+                                <Pause className="h-4 w-4" />
+                            ) : (
+                                <Play className="h-4 w-4" />
+                            )}
+                            <span className="ml-1">{isPlaying ? 'Pause' : 'Play'}</span>
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={() => skipTime(5)}
+                            className="text-xs bg-black/50 text-white border-white/30 hover:bg-white/20"
+                        >
+                            <SkipForward className="h-4 w-4" />
+                            <span className="ml-1">+5s</span>
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="default"
+                            onClick={toggleFullscreen}
+                            className="ml-2 text-xs bg-black/50 text-white border-white/30 hover:bg-white/20"
+                        >
+                            <Minimize className="h-4 w-4" />
+                            <span className="ml-1">Exit</span>
+                        </Button>
                     </div>
                 </div>
-            </div>
+            )}
 
-            <div className="mt-4 space-y-4">
-                {/* Timeline Slider */}
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-12">
-                        {formatTime(currentTime)}
-                    </span>
-                    <Slider
-                        value={[currentTime]}
-                        max={videoDuration || 100}
-                        step={0.01}
-                        onValueChange={handleSeek}
-                        className="flex-1"
-                    />
-                    <span className="text-xs text-muted-foreground w-12">
-                        {formatTime(videoDuration)}
-                    </span>
-                </div>
+            {/* Regular Controls (Non-fullscreen) */}
+            {!isFullscreen && (
+                <div className="mt-2 md:mt-4 space-y-2 md:space-y-4">
+                    {/* Timeline Slider */}
+                    <div className="flex items-center gap-1 md:gap-2">
+                        <span className="text-xs text-muted-foreground w-8 md:w-12">
+                            {formatTime(currentTime)}
+                        </span>
+                        <Slider
+                            value={[currentTime]}
+                            max={videoDuration || 100}
+                            step={0.01}
+                            onValueChange={handleSeek}
+                            className="flex-1"
+                        />
+                        <span className="text-xs text-muted-foreground w-8 md:w-12">
+                            {formatTime(videoDuration)}
+                        </span>
+                    </div>
 
-                {/* Controls */}
-                <div className="flex items-center justify-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => skipTime(-5)}
-                    >
-                        <SkipBack className="h-4 w-4" />
-                    </Button>
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-1 md:gap-2 flex-wrap">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => skipTime(-5)}
+                            className="text-xs md:text-sm"
+                        >
+                            <SkipBack className="h-3 w-3 md:h-4 md:w-4" />
+                        </Button>
 
-                    <Button
-                        size="icon"
-                        onClick={togglePlay}
-                    >
-                        {isPlaying ? (
-                            <Pause className="h-4 w-4" />
-                        ) : (
-                            <Play className="h-4 w-4" />
+                        <Button
+                            size="icon"
+                            onClick={togglePlay}
+                            className="text-xs md:text-sm"
+                        >
+                            {isPlaying ? (
+                                <Pause className="h-3 w-3 md:h-4 md:w-4" />
+                            ) : (
+                                <Play className="h-3 w-3 md:h-4 md:w-4" />
+                            )}
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => skipTime(5)}
+                            className="text-xs md:text-sm"
+                        >
+                            <SkipForward className="h-3 w-3 md:h-4 md:w-4" />
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={toggleFullscreen}
+                            className="ml-1 md:ml-2 text-xs md:text-sm"
+                        >
+                            <Maximize className="h-3 w-3 md:h-4 md:w-4" />
+                        </Button>
+
+                        {showAllWords && (
+                            <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => setShowAllWords(false)}
+                                className="ml-1 md:ml-4 text-xs hidden md:flex"
+                            >
+                                <EyeOff className="h-4 w-4 mr-2" />
+                                Hide All Words
+                            </Button>
                         )}
-                    </Button>
 
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => skipTime(5)}
-                    >
-                        <SkipForward className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                        variant={showAllWords ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setShowAllWords(!showAllWords)}
-                        className="ml-4"
-                    >
-                        {showAllWords ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                        {showAllWords ? 'Hide All Words' : 'Show All Words'}
-                    </Button>
-
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                            console.log('=== LAYERS DEBUG ===')
-                            console.log('Total layers:', layers.length)
-                            console.log('Word layers:', layers.filter(l => l.isWordLayer))
-                            console.log('All layers:', layers)
-                            alert(`Total: ${layers.length} layers, Words: ${layers.filter(l => l.isWordLayer).length}`)
-                        }}
-                        className="ml-2"
-                    >
-                        Debug Layers
-                    </Button>
+                        {!showAllWords && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowAllWords(true)}
+                                className="ml-1 md:ml-4 text-xs hidden md:flex"
+                            >
+                                <Eye className="h-4 w-4 mr-2" />
+                                Show All Words
+                            </Button>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     )
 }

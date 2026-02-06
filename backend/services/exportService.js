@@ -149,30 +149,87 @@ async function processExport(jobId, data) {
 
     console.log('📐 Force style:', forceStyle);
 
-    command.videoFilters([
-      `subtitles='${escapedSubPath}':force_style='${forceStyle}'`
-    ]);
+    // Don't apply subtitles here, combine with other filters below
   }
 
-  // Add static text layers (not word-based)
-  const staticLayers = layers.filter(l => !l.isWordLayer && l.type === 'text');
-  if (staticLayers.length > 0) {
-    const filterComplex = [];
-    staticLayers.forEach((layer) => {
-      const text = (layer.text || 'Text').replace(/'/g, "\\'").replace(/:/g, '\\:');
-      const fontSize = layer.fontSize || 48;
-      const fontColor = (layer.fill || '#ffffff').replace('#', '');
-      const x = layer.left || 100;
-      const y = layer.top || 100;
+  // Combine all video filters together
+  const allFilters = [];
+  
+  // Add SRT subtitles if available
+  if (wordTimestamps && wordTimestamps.length > 0) {
+    const escapedSubPath = subtitlePath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    const hexColor = style.fill.replace('#', '');
+    const r = parseInt(hexColor.substring(0, 2), 16);
+    const g = parseInt(hexColor.substring(2, 4), 16);
+    const b = parseInt(hexColor.substring(4, 6), 16);
+    const assColor = `&H00${b.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${r.toString(16).padStart(2, '0')}`.toUpperCase();
+    
+    const marginV = Math.round((100 - style.verticalPosition) * 10.8);
+    const outlineSize = Math.max(2, Math.round(style.shadowBlur / 3));
+    const shadowDepth = Math.max(1, Math.round(Math.sqrt(style.shadowX ** 2 + style.shadowY ** 2) / 2));
+    
+    const forceStyle = [
+      `FontName=${style.fontFamily}`,
+      `FontSize=${style.fontSize}`,
+      `PrimaryColour=${assColor}`,
+      `OutlineColour=&H00000000`,
+      `BackColour=&H80000000`,
+      `BorderStyle=1`,
+      `Outline=${outlineSize}`,
+      `Shadow=${shadowDepth}`,
+      `Bold=${style.fontWeight === 'bold' ? -1 : 0}`,
+      `Alignment=2`,
+      `MarginV=${marginV}`,
+      `Spacing=0`
+    ].join(',');
+    
+    allFilters.push(`subtitles='${escapedSubPath}':force_style='${forceStyle}'`);
+    console.log('✅ Added SRT subtitles filter');
+  }
 
-      filterComplex.push(
-        `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=0x${fontColor}`
+  // Add static text layers
+  const staticLayers = layers.filter(l => !l.isWordLayer && l.type === 'text');
+  const wordLayers = layers.filter(l => l.isWordLayer && l.type === 'text');
+  
+  // Process static layers
+  staticLayers.forEach((layer) => {
+    const text = (layer.text || 'Text').replace(/'/g, "\\'").replace(/:/g, '\\:');
+    const fontSize = layer.fontSize || 48;
+    const fontColor = (layer.fill || '#ffffff').replace('#', '');
+    const x = layer.left || 100;
+    const y = layer.top || 100;
+
+    allFilters.push(
+      `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=0x${fontColor}`
+    );
+  });
+  
+  // Process word layers with timing if no SRT subtitles
+  if (wordLayers.length > 0 && (!wordTimestamps || wordTimestamps.length === 0)) {
+    console.log(`📝 Adding ${wordLayers.length} word layers as text overlays`);
+    wordLayers.forEach((layer) => {
+      const text = (layer.text || '').replace(/'/g, "\\'").replace(/:/g, '\\:');
+      const fontSize = style.fontSize || 80;
+      const fontColor = (style.fill || '#FFFF00').replace('#', '');
+      const x = '(w-text_w)/2'; // Center horizontally
+      const y = `(h*${style.verticalPosition || 85})/100`;
+      
+      const startTime = layer.startTime || 0;
+      const endTime = layer.endTime || (startTime + 1);
+      
+      allFilters.push(
+        `drawtext=text='${text}':x=${x}:y=${y}:fontsize=${fontSize}:fontcolor=0x${fontColor}:enable='between(t,${startTime},${endTime})'`
       );
     });
+  }
 
-    if (filterComplex.length > 0) {
-      command.videoFilters(filterComplex.join(','));
-    }
+  // Apply all filters at once
+  if (allFilters.length > 0) {
+    command.videoFilters(allFilters);
+    console.log('🎨 Applied all filters:', allFilters.length);
+    console.log('🔍 Filters:', allFilters);
+  } else {
+    console.warn('⚠️ No filters to apply - captions may not appear!');
   }
 
   return new Promise((resolve, reject) => {

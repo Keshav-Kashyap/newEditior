@@ -15,7 +15,7 @@ import { Type, Palette, Move, Upload } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export function CaptionSettings() {
-    const { captionStyle, updateCaptionStyle, customFonts, addCustomFont } = useEditorStore()
+    const { captionStyle, updateCaptionStyle, customFonts, addCustomFont, globalEditMode, toggleGlobalEditMode } = useEditorStore()
     const [uploading, setUploading] = useState(false)
 
     // Load custom fonts from localStorage on mount
@@ -78,17 +78,17 @@ export function CaptionSettings() {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-6 space-y-6"
+            className="p-3 md:p-6 space-y-4 md:space-y-6"
         >
-            <div className="flex items-center gap-2 pb-4 border-b">
-                <Type className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-semibold">Caption Settings</h2>
+            <div className="flex items-center gap-2 pb-2 md:pb-4 border-b">
+                <Type className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                <h2 className="text-lg md:text-xl font-semibold">Caption Settings</h2>
             </div>
 
             {/* Font Family */}
-            <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                    <Type className="h-4 w-4" />
+            <div className="space-y-2 md:space-y-3">
+                <Label className="flex items-center gap-2 text-sm md:text-base">
+                    <Type className="h-3 w-3 md:h-4 md:w-4" />
                     Font Family
                 </Label>
                 <Select
@@ -196,6 +196,41 @@ export function CaptionSettings() {
                         <SelectItem value="lighter">Lighter</SelectItem>
                     </SelectContent>
                 </Select>
+            </div>
+
+            {/* Global Edit Mode Controls */}
+            <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                        <Type className="h-4 w-4" />
+                        Edit Mode
+                    </Label>
+                    <Button
+                        variant={globalEditMode ? "default" : "outline"}
+                        size="sm"
+                        onClick={toggleGlobalEditMode}
+                        className={`text-xs ${globalEditMode 
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                            : 'border-blue-400 text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900'
+                        }`}
+                    >
+                        {globalEditMode ? "🌐 Global Edit" : "🎯 Individual Edit"}
+                    </Button>
+                </div>
+                <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                    {globalEditMode ? (
+                        <>
+                            <p>🌐 <strong>Global Mode:</strong> Style changes apply to ALL words</p>
+                            <p>📝 Edit one word and all words update with the same formatting</p>
+                        </>
+                    ) : (
+                        <>
+                            <p>🎯 <strong>Individual Mode:</strong> Style changes apply to selected words only</p>
+                            <p>📝 Each word can have unique formatting and positioning</p>
+                        </>
+                    )}
+                    <p>📦 Container bounds keep text within safe viewing area with auto-wrapping</p>
+                </div>
             </div>
 
             {/* Shadow Settings */}

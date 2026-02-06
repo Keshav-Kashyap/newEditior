@@ -26,12 +26,14 @@ export const useEditorStore = create((set, get) => ({
     videoDuration: 0,
     currentTime: 0,
     isPlaying: false,
+    isFullscreen: false,
 
     setVideoUrl: (url) => set({ videoUrl: url }),
     setUploadedVideoPath: (path) => set({ uploadedVideoPath: path }),
     setVideoDuration: (duration) => set({ videoDuration: duration }),
     setCurrentTime: (time) => set({ currentTime: time }),
     setIsPlaying: (playing) => set({ isPlaying: playing }),
+    toggleFullscreen: () => set((state) => ({ isFullscreen: !state.isFullscreen })),
 
     // Caption styling
     captionStyle: {
@@ -44,21 +46,32 @@ export const useEditorStore = create((set, get) => ({
         shadowY: 3,
         shadowOpacity: 0.9,
         verticalPosition: 50,
-        speedOffset: 0
+        speedOffset: 0,
+        textAlign: 'center'
     },
 
     customFonts: loadCustomFonts(),
+
+    // Individual vs Global editing control
+    globalEditMode: false,
+    toggleGlobalEditMode: () => set((state) => ({ globalEditMode: !state.globalEditMode })),
 
     updateCaptionStyle: (updates) => {
         const newStyle = { ...get().captionStyle, ...updates }
         
         set({ captionStyle: newStyle })
         
-        // Force canvas re-render by updating timestamp
+        // Force canvas re-render and re-position word layers if alignment changed
         const wordLayers = get().layers.filter(l => l.isWordLayer)
         if (wordLayers.length > 0) {
             console.log('🎨 Applying caption style changes to', wordLayers.length, 'word layers')
-            // Trigger re-render - the canvas will pick up new captionStyle
+            
+            // If alignment changed, update word layer positions
+            if (updates.textAlign) {
+                console.log('📍 Alignment changed to:', updates.textAlign, '- updating word positions')
+            }
+            
+            // Trigger re-render - the canvas will pick up new captionStyle and positions
             set({ layers: [...get().layers] })
         }
     },
@@ -72,6 +85,8 @@ export const useEditorStore = create((set, get) => ({
     // Canvas layers
     layers: [],
     selectedLayerId: null,
+
+    setLayers: (layers) => set({ layers }),
 
     addLayer: (layer) => set((state) => ({
         layers: [...state.layers, { ...layer, id: Date.now().toString() + Math.random() }]
