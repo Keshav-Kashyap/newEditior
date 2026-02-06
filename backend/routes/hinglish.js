@@ -62,12 +62,13 @@ router.post('/convert-hinglish', async (req, res) => {
 
         console.log('🔄 Converting to Hinglish:', captions.length, 'words using OpenRouter');
         console.log('📝 Model:', MODEL_NAME);
+        console.log('🔑 API Key exists:', !!OPEN_ROUTER_API_KEY);
+        console.log('🔗 API URL:', OPENROUTER_API_URL);
 
         // Extract text from captions
         const originalText = captions.map(c => c.word).join(' ');
         console.log('Original Hindi text:', originalText);
 
-        // Call OpenRouter API to convert to Hinglish
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
@@ -80,21 +81,22 @@ router.post('/convert-hinglish', async (req, res) => {
                 model: MODEL_NAME,
                 messages: [
                     {
-                        role: "system",
-                        content: "Convert Hindi text to Hinglish (Roman script). Rules: 1) Convert Hindi to phonetic Roman letters 2) Keep English words same 3) Same word count 4) Return only converted text. Examples: नमस्ते→Namaste, अच्छा→Accha, मैं→Main"
-                    },
-                    {
                         role: "user", 
-                        content: originalText
+                        content: `Convert this Hindi text to Hinglish (Roman script). Return ONLY the converted text, word by word, no explanations:\n\n${originalText}`
                     }
                 ],
                 temperature: 0.1,
-                max_tokens: 800
+                max_tokens: 2000
             })
         });
 
+        console.log('🔍 Response status:', response.status);
+        console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-            console.error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+            const errorText = await response.text();
+            console.error(`❌ OpenRouter API error: ${response.status} ${response.statusText}`);
+            console.error('❌ Error details:', errorText);
             
             // Fallback: Basic rule-based conversion
             console.log('🔄 Using fallback rule-based conversion...');
@@ -116,34 +118,98 @@ router.post('/convert-hinglish', async (req, res) => {
                 hinglishText: hinglishText,
                 model: 'fallback-rules',
                 timestamps_preserved: true,
-                note: 'Used rule-based conversion due to API error'
+                note: 'Used rule-based conversion due to API error',
+                apiError: `${response.status}: ${errorText}`
             });
         }
 
         const data = await response.json();
-        const hinglishText = data.choices[0]?.message?.content?.trim();
+        console.log('📝 Full API Response:', JSON.stringify(data, null, 2));
+        
+        let hinglishText = data.choices?.[0]?.message?.content?.trim();
+        
+        // If content is empty but reasoning exists, try to extract from reasoning
+        if (!hinglishText && data.choices?.[0]?.message?.reasoning) {
+            console.log('🔄 Content empty, checking reasoning field...');
+            const reasoning = data.choices[0].message.reasoning;
+            
+            // Try to find the actual conversion in reasoning text
+            // Look for patterns like "word1 word2 word3" after conversion attempts
+            const reasoningLines = reasoning.split('\n');
+            for (const line of reasoningLines) {
+                // Skip explanation lines, look for actual conversion
+                if (line.includes('→') || line.toLowerCase().includes('convert')) continue;
+                
+                // Look for lines that might contain the converted text
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.includes('rule') && !trimmed.includes('example') && 
+                    trimmed.split(' ').length > 5) {
+                    hinglishText = trimmed;
+                    console.log('✅ Found conversion in reasoning:', hinglishText);
+                    break;
+                }
+            }
+        }
         
         if (!hinglishText) {
-            throw new Error('No response from OpenRouter API');
+            console.error('❌ No content in API response:', data);
+            console.error('❌ Choices array:', data.choices);
+            
+            // Use fallback conversion
+            console.log('🔄 Using fallback conversion due to empty response...');
+            const fallbackText = basicHinglishConversion(originalText);
+            
+            const hinglishWords = fallbackText.split(/\s+/);
+            const hinglishCaptions = captions.map((caption, index) => ({
+                word: hinglishWords[index] || caption.word,
+                start: caption.start,
+                end: caption.end,
+                confidence: caption.confidence || 1.0
+            }));
+
+            return res.json({
+                success: true,
+                captions: hinglishCaptions,
+                wordCount: hinglishCaptions.length,
+                originalText: originalText,
+                hinglishText: fallbackText,
+                model: 'fallback-rules',
+                timestamps_preserved: true,
+                note: 'Used rule-based conversion - empty API response'
+            });
         }
 
         console.log('✅ Converted Hinglish:', hinglishText);
+        console.log('📏 Hinglish text length:', hinglishText.length);
+        console.log('🔤 Raw Hinglish text (with quotes):', `"${hinglishText}"`);
 
         // Split back into words and map to original timing
-        const hinglishWords = hinglishText.split(/\s+/);
+        const hinglishWords = hinglishText.split(/\s+/).filter(word => word.trim() !== '');
+        
+        console.log('📋 Detailed Mapping:');
+        console.log('   Original captions count:', captions.length);
+        console.log('   Hinglish words count:', hinglishWords.length);
+        console.log('   Original words:', captions.map(c => c.word));
+        console.log('   Hinglish words:', hinglishWords);
 
         // Create new captions with Hinglish text but original timings from AssemblyAI
-        const hinglishCaptions = captions.map((caption, index) => ({
-            word: hinglishWords[index] || caption.word,
-            start: caption.start, // Keep original AssemblyAI timestamps
-            end: caption.end,     // Keep original AssemblyAI timestamps
-            confidence: caption.confidence || 1.0
-        }));
+        const hinglishCaptions = captions.map((caption, index) => {
+            const hinglishWord = hinglishWords[index] || caption.word;
+            console.log(`   ${index}: "${caption.word}" → "${hinglishWord}" [${caption.start}-${caption.end}]`);
+            
+            return {
+                word: hinglishWord,
+                start: caption.start, // Keep original AssemblyAI timestamps
+                end: caption.end,     // Keep original AssemblyAI timestamps
+                confidence: caption.confidence || 1.0
+            };
+        });
 
-        console.log('📊 Result:', {
+        console.log('📊 Final Result:', {
             originalWords: captions.length,
             hinglishWords: hinglishWords.length,
-            matched: captions.length === hinglishWords.length
+            matched: captions.length === hinglishWords.length,
+            samplingMismatch: captions.length !== hinglishWords.length
         });
 
         res.json({

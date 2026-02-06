@@ -259,7 +259,7 @@ async function processExport(jobId, data) {
             ...currentJob,
             status: 'complete',
             progress: 100,
-            downloadUrl: `https://neweditior-backend.onrender.com/exports/${outputFilename}`
+            downloadUrl: `http://localhost:3000/exports/${outputFilename}`
           });
         }
 
