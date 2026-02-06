@@ -69,12 +69,17 @@ router.post('/convert-hinglish', async (req, res) => {
         const originalText = captions.map(c => c.word).join(' ');
         console.log('Original Hindi text:', originalText);
 
+        // Dynamic referer for production vs development
+        const refererUrl = process.env.NODE_ENV === 'production' 
+            ? (process.env.FRONTEND_URL || 'https://your-domain.com')
+            : 'http://localhost:9000';
+
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${OPEN_ROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:9000',
+                'HTTP-Referer': refererUrl,
                 'X-Title': 'Hindi to Hinglish Converter'
             },
             body: JSON.stringify({
